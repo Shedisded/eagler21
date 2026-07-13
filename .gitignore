@@ -1,0 +1,7 @@
+1.21.11-full/
+/game/
+/run/
+src/game/resources/
+build/
+.gradle/
+target_*/build/

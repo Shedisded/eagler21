@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./gradlew :teavm:generateJavaScript)",
+      "Read(//usr/lib/jvm/**)",
+      "Read(//home/billy/.gradle/**)"
+    ]
+  }
+}

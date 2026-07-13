@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<title>minecraft-1.21.11-port (TeaVM)</title>
+	<style>
+		html, body { margin: 0; padding: 0; background: #000; overflow: hidden; }
+		#gameCanvas { display: block; width: 100vw; height: 100vh; }
+	</style>
+</head>
+<body>
+	<canvas id="gameCanvas" width="1280" height="720"></canvas>
+	<script>
+		// TeaVM UMD module exports main(); it does not auto-run.
+		window.addEventListener('error', e => console.error('[window error]', e.message));
+	</script>
+	<script src="classes.js"></script>
+	<script>
+		try {
+			main([]);
+		} catch (e) {
+			console.error('[main threw]', e && e.stack || e);
+		}
+	</script>
+</body>
+</html>

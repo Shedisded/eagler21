@@ -1,0 +1,6 @@
+org/lwjgl/stb/STBImage.nstbi_image_free:(J)V
+org/lwjgl/stb/STBImageResize.nstbir_resize_uint8:(JIIIJIIII)I
+org/lwjgl/stb/STBImage.stbi_failure_reason:()Ljava/lang/String;
+org/lwjgl/stb/STBImage.stbi_load_from_memory:(Ljava/nio/ByteBuffer;Ljava/nio/IntBuffer;Ljava/nio/IntBuffer;Ljava/nio/IntBuffer;I)Ljava/nio/ByteBuffer;
+org/lwjgl/stb/STBImageWrite.nstbi_write_png_to_func:(JJIIIJI)I
+org/lwjgl/stb/STBIWriteCallback."<init>":()V

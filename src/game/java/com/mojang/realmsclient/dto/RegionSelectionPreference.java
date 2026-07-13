@@ -1,0 +1,44 @@
+package com.mojang.realmsclient.dto;
+
+import com.google.gson.TypeAdapter;
+import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonWriter;
+import com.mojang.logging.LogUtils;
+import java.io.IOException;
+import org.slf4j.Logger;
+
+public enum RegionSelectionPreference {
+    AUTOMATIC_PLAYER(0, "realms.configuration.region_preference.automatic_player"),
+    AUTOMATIC_OWNER(1, "realms.configuration.region_preference.automatic_owner"),
+    MANUAL(2, "");
+
+    public static final RegionSelectionPreference DEFAULT_SELECTION = AUTOMATIC_PLAYER;
+    public final int id;
+    public final String translationKey;
+
+    private RegionSelectionPreference(int p_425638_, String p_425862_) {
+        this.id = p_425638_;
+        this.translationKey = p_425862_;
+    }
+
+    public static class RegionSelectionPreferenceJsonAdapter extends TypeAdapter<RegionSelectionPreference> {
+        private static final Logger LOGGER = LogUtils.getLogger();
+
+        public void write(JsonWriter p_426291_, RegionSelectionPreference p_425662_) throws IOException {
+            p_426291_.value((long)p_425662_.id);
+        }
+
+        public RegionSelectionPreference read(JsonReader p_426081_) throws IOException {
+            int i = p_426081_.nextInt();
+
+            for (RegionSelectionPreference regionselectionpreference : RegionSelectionPreference.values()) {
+                if (regionselectionpreference.id == i) {
+                    return regionselectionpreference;
+                }
+            }
+
+            LOGGER.warn("Unsupported RegionSelectionPreference {}", i);
+            return RegionSelectionPreference.DEFAULT_SELECTION;
+        }
+    }
+}

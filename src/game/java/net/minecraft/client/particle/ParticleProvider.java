@@ -1,0 +1,34 @@
+package net.minecraft.client.particle;
+
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.core.particles.ParticleOptions;
+import net.minecraft.util.RandomSource;
+import org.jspecify.annotations.Nullable;
+
+public interface ParticleProvider<T extends ParticleOptions> {
+    @Nullable Particle createParticle(
+        T p_107421_,
+        ClientLevel p_107422_,
+        double p_107423_,
+        double p_107424_,
+        double p_107425_,
+        double p_107426_,
+        double p_107427_,
+        double p_107428_,
+        RandomSource p_447205_
+    );
+
+    public interface Sprite<T extends ParticleOptions> {
+        @Nullable SingleQuadParticle createParticle(
+            T p_273550_,
+            ClientLevel p_273071_,
+            double p_273160_,
+            double p_273576_,
+            double p_272710_,
+            double p_273652_,
+            double p_273457_,
+            double p_272840_,
+            RandomSource p_446743_
+        );
+    }
+}
