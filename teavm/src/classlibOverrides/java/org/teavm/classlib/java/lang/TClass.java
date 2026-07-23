@@ -515,7 +515,10 @@ public final class TClass<T> extends TObject implements TGenericDeclaration, TTy
     }
 
     public boolean desiredAssertionStatus() {
-        return true;
+        // ponytail: desktop MC runs WITHOUT -ea (assertions disabled). TeaVM defaulted this to
+        // true, so MC's `assert` statements fire in the browser and don't on desktop — a spurious
+        // AssertionError in the texture-atlas path crashed startup. Match desktop: assertions off.
+        return false;
     }
 
     @SuppressWarnings("unchecked")

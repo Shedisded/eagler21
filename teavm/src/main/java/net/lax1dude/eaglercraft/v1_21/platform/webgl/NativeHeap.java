@@ -1,6 +1,7 @@
 package net.lax1dude.eaglercraft.v1_21.platform.webgl;
 
 import org.teavm.jso.JSBody;
+import org.teavm.jso.JSByRef;
 import org.teavm.jso.typedarrays.Int8Array;
 
 /**
@@ -162,8 +163,18 @@ public final class NativeHeap {
 		return subarray(HEAP, (int) addr, len);
 	}
 
-	@JSBody(params = { "array", "begin", "len" }, script = "return array.data.subarray(begin, begin + len);")
-	static native Int8Array subarray(byte[] array, int begin, int len);
+	// @JSByRef passes the byte[]'s underlying Int8Array by reference (zero-copy). WITHOUT it,
+	// TeaVM marshals a byte[] param by allocating a fresh Int8Array and copying every byte —
+	// here that meant a full 256MB copy per upload AND the script's `array.data` read hit
+	// `undefined` (the copy is a raw Int8Array, no `.data`) → crash on the first real texture
+	// upload (DynamicTexture.upload → writeToTexture → view). With @JSByRef, `array` IS the
+	// Int8Array, so subarray() returns a live zero-copy view over HEAP (writes back for readPixels).
+	// Return a Uint8Array (not the byte[]'s native Int8Array): WebGL2 texImage2D/texSubImage2D
+	// and readPixels with type UNSIGNED_BYTE reject a signed Int8Array ("ArrayBufferView not
+	// Uint8Array or Uint8ClampedArray"); bufferData accepts either. The Uint8Array is a view over
+	// the SAME ArrayBuffer (zero-copy, writes land back in HEAP for readPixels).
+	@JSBody(params = { "array", "begin", "len" }, script = "return new Uint8Array(array.buffer, array.byteOffset + begin, len);")
+	static native Int8Array subarray(@JSByRef byte[] array, int begin, int len);
 
 	// --- internal bookkeeping ---
 

@@ -13,14 +13,17 @@ import org.jspecify.annotations.Nullable;
 
 public abstract class GlslPreprocessor {
     private static final String C_COMMENT = "/\\*(?:[^*]|\\*+[^*/])*\\*+/";
-    private static final String LINE_COMMENT = "//[^\\v]*";
+    // eagler: TeaVM's regex engine does not support \h (horizontal ws), \v (vertical ws)
+    // or \z (absolute end). Shaders only use ASCII whitespace, so \h -> [ \t], \v -> [\n\r],
+    // \z -> $ are equivalent here (and identical on desktop for shader source).
+    private static final String LINE_COMMENT = "//[^\\n\\r]*";
     private static final Pattern REGEX_MOJ_IMPORT = Pattern.compile(
-        "(#(?:/\\*(?:[^*]|\\*+[^*/])*\\*+/|\\h)*moj_import(?:/\\*(?:[^*]|\\*+[^*/])*\\*+/|\\h)*(?:\"(.*)\"|<(.*)>))"
+        "(#(?:/\\*(?:[^*]|\\*+[^*/])*\\*+/|[ \\t])*moj_import(?:/\\*(?:[^*]|\\*+[^*/])*\\*+/|[ \\t])*(?:\"(.*)\"|<(.*)>))"
     );
     private static final Pattern REGEX_VERSION = Pattern.compile(
-        "(#(?:/\\*(?:[^*]|\\*+[^*/])*\\*+/|\\h)*version(?:/\\*(?:[^*]|\\*+[^*/])*\\*+/|\\h)*(\\d+))\\b"
+        "(#(?:/\\*(?:[^*]|\\*+[^*/])*\\*+/|[ \\t])*version(?:/\\*(?:[^*]|\\*+[^*/])*\\*+/|[ \\t])*(\\d+))\\b"
     );
-    private static final Pattern REGEX_ENDS_WITH_WHITESPACE = Pattern.compile("(?:^|\\v)(?:\\s|/\\*(?:[^*]|\\*+[^*/])*\\*+/|(//[^\\v]*))*\\z");
+    private static final Pattern REGEX_ENDS_WITH_WHITESPACE = Pattern.compile("(?:^|[\\n\\r])(?:\\s|/\\*(?:[^*]|\\*+[^*/])*\\*+/|(//[^\\n\\r]*))*$");
 
     public List<String> process(String p_166462_) {
         GlslPreprocessor.Context glslpreprocessor$context = new GlslPreprocessor.Context();

@@ -94,14 +94,20 @@ public final class STBImage {
 			}
 		}
 
-		if (bitDepth != 8) {
-			throw new IllegalArgumentException("unsupported bit depth " + bitDepth + " (8 only)");
-		}
 		if (interlace != 0) {
 			throw new IllegalArgumentException("interlaced PNG unsupported");
 		}
+		// ponytail: bit depths 1/2/4 (grayscale + palette) are needed by the default font
+		// (1-bit) and armor trims (2/4-bit) — a missing default font is a FATAL crash. 16-bit
+		// unseen in vanilla; add if an asset needs it.
+		if (bitDepth != 1 && bitDepth != 2 && bitDepth != 4 && bitDepth != 8) {
+			throw new IllegalArgumentException("unsupported bit depth " + bitDepth);
+		}
+		if (bitDepth < 8 && colorType != 0 && colorType != 3) {
+			throw new IllegalArgumentException("sub-8-bit only valid for grayscale/palette, got color type " + colorType);
+		}
 
-		int srcCh; // channels in the raw scanlines
+		int srcCh; // channels (samples) per pixel in the raw scanlines
 		switch (colorType) {
 			case 0: srcCh = 1; break; // grayscale
 			case 2: srcCh = 3; break; // truecolor
@@ -112,9 +118,31 @@ public final class STBImage {
 		}
 
 		byte[] zdata = idat.toByteArray();
-		int stride = width * srcCh;
-		byte[] raw = new byte[height * stride];
-		inflateAndUnfilter(zdata, raw, height, stride, srcCh);
+		int stride = width * srcCh; // one byte per sample after expansion (what the colour loop reads)
+		byte[] raw;
+		if (bitDepth == 8) {
+			raw = new byte[height * stride];
+			inflateAndUnfilter(zdata, raw, height, stride, srcCh);
+		} else {
+			// Packed scanline: bitDepth bits per sample, MSB-first, byte-aligned per row.
+			// PNG filter "bpp" rounds up to 1 byte for sub-8-bit samples.
+			int packedStride = (width * srcCh * bitDepth + 7) / 8;
+			byte[] packed = new byte[height * packedStride];
+			inflateAndUnfilter(zdata, packed, height, packedStride, 1);
+			raw = new byte[height * stride];
+			int maxVal = (1 << bitDepth) - 1;
+			int scale = colorType == 0 ? 255 / maxVal : 1; // grayscale -> 0..255; palette -> keep index
+			for (int y = 0; y < height; y++) {
+				int prow = y * packedStride;
+				int orow = y * stride;
+				int bit = 0;
+				for (int s = 0; s < width * srcCh; s++) {
+					int val = (packed[prow + (bit >> 3)] >> (8 - bitDepth - (bit & 7))) & maxVal;
+					raw[orow + s] = (byte) (val * scale);
+					bit += bitDepth;
+				}
+			}
+		}
 
 		// report file channel count (used only when desired==0)
 		int fileCh = colorType == 3 ? 3 : (colorType == 4 ? 2 : (colorType == 0 ? 1 : srcCh));

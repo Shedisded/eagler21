@@ -69,8 +69,14 @@ public enum TTimeUnit {
     }
 
     public long convert(java.time.Duration duration) {
-        // ponytail: Stage D — Duration conversion not implemented; link-only stub.
-        return 0;
+        // Convert the whole duration into this unit: seconds part + nanos part, each mapped
+        // through the existing unit-to-unit convert. Returning 0 (the old link stub) made
+        // MC's DataFetcher.createTask reject every task with "Period of PT1M too short for
+        // selected resolution of MILLISECONDS" (60s should map to 60000ms). No overflow
+        // clamping (java.util's TimeUnit clamps to Long.MIN/MAX) — MC's periods are small.
+        long secs = duration.getSeconds();
+        long nano = duration.getNano();
+        return convert(secs, SECONDS) + convert(nano, NANOSECONDS);
     }
 
     public void timedWait(Object obj, long timeout) throws InterruptedException {

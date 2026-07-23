@@ -100,109 +100,19 @@ public class FileDownload {
         }
     }
 
-    private static HttpClient createClient() {
-        return HttpClient.newBuilder().executor(Util.nonCriticalIoPool()).connectTimeout(Duration.ofMinutes(2L)).build();
-    }
-
-    private static Builder createRequest(String p_461101_) {
-        return HttpRequest.newBuilder(URI.create(p_461101_)).timeout(Duration.ofMinutes(2L));
-    }
-
+    // ponytail: Realms world download used java.net.http (HttpClient), which has no browser
+    // transport. createClient/createRequest and the HTTP download paths are gutted so
+    // java.net.http stays UNREACHABLE at TeaVM link time (stubbing that API cascades into
+    // HttpHeaders/Flow/generics). Realms is disabled in the browser port. Non-HTTP helpers
+    // (untar, folder naming) are kept but are now dead code.
     @CheckReturnValue
     public static OptionalLong contentLength(String p_86990_) {
-        try {
-            OptionalLong optionallong;
-            try (HttpClient httpclient = createClient()) {
-                HttpResponse<Void> httpresponse = httpclient.send(createRequest(p_86990_).HEAD().build(), BodyHandlers.discarding());
-                optionallong = httpresponse.headers().firstValueAsLong("Content-Length");
-            }
-
-            return optionallong;
-        } catch (Exception exception) {
-            LOGGER.error("Unable to get content length for download");
-            return OptionalLong.empty();
-        }
+        return OptionalLong.empty();
     }
 
     public void download(WorldDownload p_86983_, String p_86984_, RealmsDownloadLatestWorldScreen.DownloadStatus p_86985_, LevelStorageSource p_86986_) {
-        if (this.currentThread == null) {
-            this.currentThread = new Thread(() -> {
-                try (HttpClient httpclient = createClient()) {
-                    try {
-                        this.tempFile = File.createTempFile("backup", ".tar.gz");
-                        this.download(p_86985_, httpclient, p_86983_.downloadLink(), this.tempFile);
-                        this.finishWorldDownload(p_86984_.trim(), this.tempFile, p_86986_, p_86985_);
-                    } catch (Exception exception1) {
-                        LOGGER.error("Caught exception while downloading world", (Throwable)exception1);
-                        this.error = true;
-                    } finally {
-                        this.pendingRequest = null;
-                        if (this.tempFile != null) {
-                            this.tempFile.delete();
-                        }
-
-                        this.tempFile = null;
-                    }
-
-                    if (this.error) {
-                        return;
-                    }
-
-                    String s = p_86983_.resourcePackUrl();
-                    if (!s.isEmpty() && !p_86983_.resourcePackHash().isEmpty()) {
-                        try {
-                            this.tempFile = File.createTempFile("resources", ".tar.gz");
-                            this.download(p_86985_, httpclient, s, this.tempFile);
-                            this.finishResourcePackDownload(p_86985_, this.tempFile, p_86983_);
-                        } catch (Exception exception) {
-                            LOGGER.error("Caught exception while downloading resource pack", (Throwable)exception);
-                            this.error = true;
-                        } finally {
-                            this.pendingRequest = null;
-                            if (this.tempFile != null) {
-                                this.tempFile.delete();
-                            }
-
-                            this.tempFile = null;
-                        }
-                    }
-
-                    this.finished = true;
-                }
-            });
-            this.currentThread.setUncaughtExceptionHandler(new RealmsDefaultUncaughtExceptionHandler(LOGGER));
-            this.currentThread.start();
-        }
-    }
-
-    private void download(RealmsDownloadLatestWorldScreen.DownloadStatus p_460884_, HttpClient p_461233_, String p_461174_, File p_461041_) throws IOException {
-        HttpRequest httprequest = createRequest(p_461174_).GET().build();
-
-        HttpResponse<InputStream> httpresponse;
-        try {
-            httpresponse = this.joinCancellableRequest(p_461233_.sendAsync(httprequest, BodyHandlers.ofInputStream()));
-        } catch (Error errorx) {
-            throw errorx;
-        } catch (Throwable throwable) {
-            LOGGER.error("Failed to download {}", p_461174_, throwable);
-            this.error = true;
-            return;
-        }
-
-        if (httpresponse != null && !this.cancelled) {
-            if (httpresponse.statusCode() != 200) {
-                this.error = true;
-            } else {
-                p_460884_.totalBytes = httpresponse.headers().firstValueAsLong("Content-Length").orElse(0L);
-
-                try (
-                    InputStream inputstream = httpresponse.body();
-                    OutputStream outputstream = new FileOutputStream(p_461041_);
-                ) {
-                    inputstream.transferTo(new FileDownload.DownloadCountingOutputStream(outputstream, p_460884_));
-                }
-            }
-        }
+        LOGGER.warn("Realms world download is not supported in the browser build");
+        this.error = true;
     }
 
     public void cancel() {

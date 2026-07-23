@@ -93,7 +93,15 @@ public class ConnectScreen extends Screen {
                         return;
                     }
 
-                    Optional<InetSocketAddress> optional = ServerNameResolver.DEFAULT.resolveAddress(p_249536_).map(ResolvedServerAddress::asInetSocketAddress);
+                    Optional<InetSocketAddress> optional;
+                    if (p_249536_.getWebSocketUrl() != null) {
+                        // Browsers cannot resolve/open TCP sockets. Keep the original URL for the
+                        // WebSocket channel and use an unresolved placeholder to bypass DNS.
+                        p_249536_.activateWebSocketUrl();
+                        optional = Optional.of(InetSocketAddress.createUnresolved(p_249536_.getHost(), p_249536_.getPort()));
+                    } else {
+                        optional = ServerNameResolver.DEFAULT.resolveAddress(p_249536_).map(ResolvedServerAddress::asInetSocketAddress);
+                    }
                     if (ConnectScreen.this.aborted) {
                         return;
                     }

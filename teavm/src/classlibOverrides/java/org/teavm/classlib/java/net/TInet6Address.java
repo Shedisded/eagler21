@@ -17,4 +17,13 @@ public class TInet6Address extends TInetAddress {
 	public static TInet6Address getByAddress(String host, byte[] addr, TNetworkInterface nif) {
 		return null;
 	}
+
+	// Referenced by netty's address handling (Bootstrap connect / resolver). No IPv6 scope in the browser.
+	public TNetworkInterface getScopedInterface() {
+		return null;
+	}
+
+	public int getScopeId() {
+		return 0;
+	}
 }

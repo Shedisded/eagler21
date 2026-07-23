@@ -132,10 +132,17 @@ public final class MemoryUtil {
 	}
 
 	public static ByteBuffer memRealloc(ByteBuffer old, int newSize) {
+		// ponytail: preserve position/limit like real LWJGL. TextureUtil.readResource grows the
+		// buffer mid-fill (channel.read then memRealloc when full) and keeps reading into the
+		// RETURNED buffer — a position-0 buffer would overwrite the PNG signature at index 0 with
+		// later bytes -> "Bad PNG Signature" for any image bigger than the initial capacity.
+		int oldPos = old.position();
 		long oldAddr = addressOf(old);
 		long newAddr = NativeHeap.realloc(oldAddr, newSize);
 		unregister(old);
-		return newByteBuffer(newAddr, newSize);
+		ByteBuffer bb = newByteBuffer(newAddr, newSize); // capacity==limit==newSize, room to keep filling
+		bb.position(Math.min(oldPos, newSize));
+		return bb;
 	}
 
 	public static void memFree(Buffer buffer) {

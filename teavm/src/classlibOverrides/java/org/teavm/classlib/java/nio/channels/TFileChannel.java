@@ -6,18 +6,18 @@ import org.teavm.classlib.java.nio.file.TOpenOption;
 import org.teavm.classlib.java.nio.file.TPath;
 
 /**
- * Link-only stub. Real file channels are unused in the browser (ICU's mmap path
- * is dead at the title screen); only MapMode.READ_ONLY is referenced as a
- * constant. FileInputStream.getChannel() throws rather than returning one.
- *
- * ponytail: the instance/open methods exist purely to satisfy MC's region-file
- * (LevelStorageSource) link refs and all throw — real file I/O is Stage D (back
- * it with the TeaVM in-memory VFS then).
+ * In-memory FileChannel for the browser build. TeaVM's default FS is an in-memory VFS
+ * and there is no OS file handle, so this backs each channel with a growable byte[] held
+ * for the channel's lifetime (NOT yet synced back to the VFS on close — a Stage-D save
+ * concern; write-only logs like DownloadQueue's JsonEventLog and read-back-within-session
+ * work fine). map() still throws (no mmap in a browser). Only the method signatures MC
+ * actually references exist here (verified by the green TeaVM link); the base-class bodies
+ * throw so any new ref surfaces at link time rather than silently no-oping.
  */
 public abstract class TFileChannel {
 
 	public static TFileChannel open(TPath path, TOpenOption... options) {
-		throw new UnsupportedOperationException("FileChannel.open unavailable in browser (Stage D)");
+		return new InMemoryFileChannel();
 	}
 
 	public int read(TByteBuffer dst, long position) {
@@ -63,6 +63,121 @@ public abstract class TFileChannel {
 	public TMappedByteBuffer map(MapMode mode, long position, long size) {
 		throw new UnsupportedOperationException("FileChannel.map — no mmap in the browser (Stage D)");
 	}
+
+	/** Growable-byte[]-backed concrete channel. Single-session, not VFS-persistent yet. */
+	static final class InMemoryFileChannel extends TFileChannel {
+		private byte[] data = new byte[32];
+		private int length;
+		private long position;
+		private boolean open = true;
+
+		private void ensure(long end) {
+			if (end > data.length) {
+				int cap = data.length;
+				while (cap < end) {
+					cap <<= 1;
+				}
+				byte[] grown = new byte[cap];
+				System.arraycopy(data, 0, grown, 0, length);
+				data = grown;
+			}
+		}
+
+		private int writeAt(TByteBuffer src, long at) {
+			int n = src.remaining();
+			ensure(at + n);
+			byte[] tmp = new byte[n];
+			src.get(tmp, 0, n);
+			System.arraycopy(tmp, 0, data, (int) at, n);
+			if (at + n > length) {
+				length = (int) (at + n);
+			}
+			return n;
+		}
+
+		@Override
+		public int write(TByteBuffer src) {
+			int n = writeAt(src, position);
+			position += n;
+			return n;
+		}
+
+		@Override
+		public int write(TByteBuffer src, long at) {
+			return writeAt(src, at);
+		}
+
+		@Override
+		public int read(TByteBuffer dst, long at) {
+			if (at >= length) {
+				return -1;
+			}
+			int n = Math.min(dst.remaining(), (int) (length - at));
+			dst.put(data, (int) at, n);
+			return n;
+		}
+
+		@Override
+		public long size() {
+			return length;
+		}
+
+		@Override
+		public TFileChannel truncate(long size) {
+			if (size < length) {
+				length = (int) size;
+			}
+			if (position > length) {
+				position = length;
+			}
+			return this;
+		}
+
+		@Override
+		public void force(boolean metaData) {
+			// no-op: nothing to flush for an in-memory channel
+		}
+
+		@Override
+		public TFileLock tryLock() {
+			return new InMemoryFileLock();
+		}
+
+		@Override
+		public void close() {
+			open = false;
+		}
+
+		@Override
+		public boolean isOpen() {
+			return open;
+		}
+
+		@Override
+		public TFileChannel position(long newPosition) {
+			position = newPosition;
+			return this;
+		}
+	}
+
+	/** Always-valid dummy lock — there is no concurrent OS process in the browser. */
+	static final class InMemoryFileLock extends TFileLock {
+		@Override
+		public boolean isValid() {
+			return true;
+		}
+
+		@Override
+		public void release() {
+			// no-op
+		}
+
+		@Override
+		public void close() {
+			// no-op
+		}
+	}
+
 	public static final class MapMode {
 		public static final MapMode READ_ONLY = new MapMode("READ_ONLY");
 		public static final MapMode READ_WRITE = new MapMode("READ_WRITE");

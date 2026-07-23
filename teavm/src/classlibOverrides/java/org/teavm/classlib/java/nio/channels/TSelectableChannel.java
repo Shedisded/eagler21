@@ -5,4 +5,8 @@ public abstract class TSelectableChannel {
 	public TSelectionKey keyFor(TSelector sel) {
 		return null;
 	}
+
+	public TSelectionKey register(TSelector sel, int ops, Object att) {
+		return null;
+	}
 }

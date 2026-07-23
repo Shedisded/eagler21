@@ -2,8 +2,10 @@ package net.lax1dude.eaglercraft.v1_21.platform;
 
 import com.google.common.util.concurrent.MoreExecutors;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ForkJoinWorkerThread;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -25,5 +27,11 @@ public final class PlatformExecutors {
 			thread.setName("Worker-" + name + "-" + counter.getAndIncrement());
 			return thread;
 		}, handler, true);
+	}
+
+	// IO pool (chunk IOWorker etc.). Desktop: a real cached thread pool. TeaVM overrides this class with a
+	// single-threaded direct executor -- IOWorker .join()s its tasks, so a non-running pool deadlocks world gen.
+	public static ExecutorService newIoExecutor(ThreadFactory factory) {
+		return Executors.newCachedThreadPool(factory);
 	}
 }

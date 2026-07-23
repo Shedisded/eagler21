@@ -38,7 +38,6 @@ public class FileUpload implements AutoCloseable {
     private final String clientVersion;
     private final String worldVersion;
     private final UploadStatus uploadStatus;
-    private final HttpClient client;
 
     public FileUpload(File p_87071_, long p_87072_, int p_87073_, UploadInfo p_87074_, User p_87075_, String p_87076_, String p_325917_, UploadStatus p_87077_) {
         this.file = p_87071_;
@@ -50,97 +49,20 @@ public class FileUpload implements AutoCloseable {
         this.clientVersion = p_87076_;
         this.worldVersion = p_325917_;
         this.uploadStatus = p_87077_;
-        this.client = HttpClient.newBuilder().executor(Util.nonCriticalIoPool()).connectTimeout(Duration.ofSeconds(15L)).build();
     }
 
     @Override
     public void close() {
-        this.client.close();
+        // ponytail: no HttpClient in the browser build; nothing to close.
     }
 
+    // ponytail: Realms world upload used java.net.http (HttpClient) — no browser transport,
+    // and stubbing that API cascades into HttpHeaders/Flow/BodyPublisher generics. Gut the
+    // HTTP path so java.net.http stays UNREACHABLE at TeaVM link time. Realms is disabled
+    // in the browser port; return a synthetic 503 so callers complete cleanly.
     public CompletableFuture<UploadResult> startUpload() {
-        long i = this.file.length();
-        this.uploadStatus.setTotalBytes(i);
-        return this.requestUpload(0, i);
-    }
-
-    private CompletableFuture<UploadResult> requestUpload(int p_87080_, long p_460718_) {
-        BodyPublisher bodypublisher = inputStreamPublisherWithSize(() -> {
-            try {
-                return new FileUpload.UploadCountingInputStream(new FileInputStream(this.file), this.uploadStatus);
-            } catch (IOException ioexception) {
-                LOGGER.warn("Failed to open file {}", this.file, ioexception);
-                return null;
-            }
-        }, p_460718_);
-        HttpRequest httprequest = HttpRequest.newBuilder(this.uploadInfo.uploadEndpoint().resolve("/upload/" + this.realmId + "/" + this.slotId))
-            .timeout(Duration.ofMinutes(10L))
-            .setHeader("Cookie", this.uploadCookie())
-            .setHeader("Content-Type", "application/octet-stream")
-            .POST(bodypublisher)
-            .build();
-        return this.client.sendAsync(httprequest, BodyHandlers.ofString(StandardCharsets.UTF_8)).thenCompose(p_460220_ -> {
-            long i = this.getRetryDelaySeconds((HttpResponse<?>)p_460220_);
-            if (this.shouldRetry(i, p_87080_)) {
-                this.uploadStatus.restart();
-
-                try {
-                    Thread.sleep(Duration.ofSeconds(i));
-                } catch (InterruptedException interruptedexception) {
-                }
-
-                return this.requestUpload(p_87080_ + 1, p_460718_);
-            } else {
-                return CompletableFuture.completedFuture(this.handleResponse((HttpResponse<String>)p_460220_));
-            }
-        });
-    }
-
-    private static BodyPublisher inputStreamPublisherWithSize(Supplier<@Nullable InputStream> p_461095_, long p_460981_) {
-        return BodyPublishers.fromPublisher(BodyPublishers.ofInputStream(p_461095_), p_460981_);
-    }
-
-    private String uploadCookie() {
-        return "sid="
-            + this.sessionId
-            + ";token="
-            + this.uploadInfo.token()
-            + ";user="
-            + this.username
-            + ";version="
-            + this.clientVersion
-            + ";worldVersion="
-            + this.worldVersion;
-    }
-
-    private UploadResult handleResponse(HttpResponse<String> p_461199_) {
-        int i = p_461199_.statusCode();
-        if (i == 401) {
-            LOGGER.debug("Realms server returned 401: {}", p_461199_.headers().firstValue("WWW-Authenticate"));
-        }
-
-        String s = null;
-        String s1 = p_461199_.body();
-        if (s1 != null && !s1.isBlank()) {
-            try {
-                JsonElement jsonelement = LenientJsonParser.parse(s1).getAsJsonObject().get("errorMsg");
-                if (jsonelement != null) {
-                    s = jsonelement.getAsString();
-                }
-            } catch (Exception exception) {
-                LOGGER.warn("Failed to parse response {}", s1, exception);
-            }
-        }
-
-        return new UploadResult(i, s);
-    }
-
-    private boolean shouldRetry(long p_87082_, int p_87083_) {
-        return p_87082_ > 0L && p_87083_ + 1 < 5;
-    }
-
-    private long getRetryDelaySeconds(HttpResponse<?> p_461270_) {
-        return p_461270_.headers().firstValueAsLong("Retry-After").orElse(0L);
+        LOGGER.warn("Realms world upload is not supported in the browser build");
+        return CompletableFuture.completedFuture(new UploadResult(503, "Realms disabled in browser port"));
     }
 
     static class UploadCountingInputStream extends CountingInputStream {

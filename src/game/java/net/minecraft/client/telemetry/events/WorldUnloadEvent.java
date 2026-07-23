@@ -31,7 +31,8 @@ public class WorldUnloadEvent {
 
     private int getTimeInSecondsSinceLoad(Instant p_261735_) {
         Duration duration = Duration.between(p_261735_, Instant.now());
-        return (int)duration.toSeconds();
+        // eagler(teavm): getSeconds() == toSeconds() for whole seconds; TeaVM lacks Duration.toSeconds().
+        return (int)duration.getSeconds();
     }
 
     public void send(TelemetryEventSender p_262088_) {

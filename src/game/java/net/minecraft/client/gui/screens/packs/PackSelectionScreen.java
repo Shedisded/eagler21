@@ -335,67 +335,24 @@ public class PackSelectionScreen extends Screen {
         return this.packIcons.computeIfAbsent(p_99990_.getId(), p_465536_ -> this.loadPackIcon(this.minecraft.getTextureManager(), p_99990_));
     }
 
+    // ponytail: pack-folder watching (java.nio.file.WatchService) is meaningless on the
+    // browser VFS and drags in the whole Watch API (WatchService/Key/Event/Watchable/
+    // StandardWatchEventKinds). Disabled: create() returns null so PackSelectionScreen never
+    // polls; the bodies are gutted to keep the Watch API out of the TeaVM reachable set.
     static class Watcher implements AutoCloseable {
-        private final WatchService watcher;
-        private final Path packPath;
-
-        public Watcher(Path p_250327_) throws IOException {
-            this.packPath = p_250327_;
-            this.watcher = p_250327_.getFileSystem().newWatchService();
-
-            try {
-                this.watchDir(p_250327_);
-
-                try (DirectoryStream<Path> directorystream = Files.newDirectoryStream(p_250327_)) {
-                    for (Path path : directorystream) {
-                        if (Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS)) {
-                            this.watchDir(path);
-                        }
-                    }
-                }
-            } catch (Exception exception) {
-                this.watcher.close();
-                throw exception;
-            }
+        private Watcher(Path p_250327_) {
         }
 
         public static PackSelectionScreen.@Nullable Watcher create(Path p_252119_) {
-            try {
-                return new PackSelectionScreen.Watcher(p_252119_);
-            } catch (IOException ioexception) {
-                PackSelectionScreen.LOGGER.warn("Failed to initialize pack directory {} monitoring", p_252119_, ioexception);
-                return null;
-            }
-        }
-
-        private void watchDir(Path p_100050_) throws IOException {
-            p_100050_.register(this.watcher, StandardWatchEventKinds.ENTRY_CREATE, StandardWatchEventKinds.ENTRY_DELETE, StandardWatchEventKinds.ENTRY_MODIFY);
+            return null;
         }
 
         public boolean pollForChanges() throws IOException {
-            boolean flag = false;
-
-            WatchKey watchkey;
-            while ((watchkey = this.watcher.poll()) != null) {
-                for (WatchEvent<?> watchevent : watchkey.pollEvents()) {
-                    flag = true;
-                    if (watchkey.watchable() == this.packPath && watchevent.kind() == StandardWatchEventKinds.ENTRY_CREATE) {
-                        Path path = this.packPath.resolve((Path)watchevent.context());
-                        if (Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS)) {
-                            this.watchDir(path);
-                        }
-                    }
-                }
-
-                watchkey.reset();
-            }
-
-            return flag;
+            return false;
         }
 
         @Override
         public void close() throws IOException {
-            this.watcher.close();
         }
     }
 }

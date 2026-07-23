@@ -678,4 +678,12 @@ public final class TCollections extends TObject {
     public static <T> TSortedSet<T> unmodifiableSortedSet(TSortedSet<T> s) {
         return s;
     }
+
+    // ponytail: link stub — returns the set as-is (not a truly immutable view). Matches the existing
+    // unmodifiableSortedSet stub above; upgrade to a real wrapper if callers mutate through it.
+    public static <T> TSequencedSet<T> unmodifiableSequencedSet(TSequencedSet<? extends T> s) {
+        @SuppressWarnings("unchecked")
+        TSequencedSet<T> r = (TSequencedSet<T>) s;
+        return r;
+    }
 }

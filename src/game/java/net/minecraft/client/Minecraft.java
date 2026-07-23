@@ -412,9 +412,14 @@ public class Minecraft extends ReentrantBlockableEventLoop<Runnable> implements 
         this.vanillaPackResources = clientpacksource.getVanillaPack();
         this.proxy = p_91084_.user.proxy;
         this.offlineDeveloperMode = p_91084_.game.offlineDeveloperMode;
-        YggdrasilAuthenticationService yggdrasilauthenticationservice = this.offlineDeveloperMode
-            ? YggdrasilAuthenticationService.createOffline(this.proxy)
-            : new YggdrasilAuthenticationService(this.proxy);
+        // eagler: the browser build is always offline — there is no Mojang auth. The online
+        // `new YggdrasilAuthenticationService(proxy)` eagerly builds a ServicesKeySet by
+        // fetching https://api.minecraftservices.com/publickeys; our URL stub throws
+        // "openConnection not supported", and authlib retries that fetch recursively until
+        // the JS call stack overflows (RangeError). createOffline() uses an empty local key
+        // set and never touches the network. (Desktop runClient uses accessToken "0" so it is
+        // effectively offline too.)
+        YggdrasilAuthenticationService yggdrasilauthenticationservice = YggdrasilAuthenticationService.createOffline(this.proxy);
         this.services = Services.create(yggdrasilauthenticationservice, this.gameDirectory);
         this.user = p_91084_.user.user;
         this.profileFuture = this.offlineDeveloperMode
@@ -818,7 +823,9 @@ public class Minecraft extends ReentrantBlockableEventLoop<Runnable> implements 
     }
 
     private UserApiService createUserApiService(YggdrasilAuthenticationService p_193586_, GameConfig p_193587_) {
-        return p_193587_.game.offlineDeveloperMode ? UserApiService.OFFLINE : p_193586_.createUserApiService(p_193587_.user.user.getAccessToken());
+        // eagler: browser build is always offline (see the auth-service note above) — never
+        // call the online createUserApiService, which hits the network via our throwing URL stub.
+        return UserApiService.OFFLINE;
     }
 
     public boolean isOfflineDeveloperMode() {

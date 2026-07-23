@@ -22,6 +22,12 @@ public final class PlatformExecutors {
 		return new DirectExecutorService();
 	}
 
+	// IO pool: JS is single-threaded, so run inline like the background executor. The desktop cached thread
+	// pool would map to a non-running TeaVM pool and IOWorker.join() would deadlock world gen (stall at ~16%).
+	public static ExecutorService newIoExecutor(java.util.concurrent.ThreadFactory factory) {
+		return new DirectExecutorService();
+	}
+
 	static final class DirectExecutorService implements ExecutorService {
 		private boolean shutdown;
 

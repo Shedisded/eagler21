@@ -24,6 +24,10 @@ public class TSocket implements java.io.Closeable {
 		return 0;
 	}
 
+	public void connect(TSocketAddress endpoint, int timeout) {
+		// ponytail: no TCP in the browser (Stage D)
+	}
+
 	@Override
 	public void close() {
 	}

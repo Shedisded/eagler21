@@ -3,7 +3,17 @@
     "allow": [
       "Bash(./gradlew :teavm:generateJavaScript)",
       "Read(//usr/lib/jvm/**)",
-      "Read(//home/billy/.gradle/**)"
+      "Read(//home/billy/.gradle/**)",
+      "Bash(cd \"C:/Users/willi/OneDrive/Desktop/1.20/1.21.11\")",
+      "Bash(echo \"=compile=\")",
+      "Bash(grep -iE 'error:|COMPILE_OK|BUILD SUCCESSFUL|BUILD FAILED' __TRACKED_VAR__/compile_p2h.log)",
+      "Bash(awk '{print $5, $6, $7, $8}')",
+      "Bash(echo \"=relink tail=\")",
+      "Bash(tail -3 __TRACKED_VAR__/relink_p2h2.log)",
+      "Bash(echo \"=js=\")",
+      "Bash(ls -la teavm/build/generated/teavm/js/classes.js)",
+      "Bash(awk '{print $5}')",
+      "Bash(ps -W)"
     ]
   }
 }

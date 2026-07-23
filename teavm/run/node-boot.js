@@ -9,7 +9,30 @@ function glMock() {
 	const cache = {};
 	return new Proxy({}, {
 		get(_t, prop) {
-			if (prop === 'getParameter') return () => 0;
+			// GL string queries (VENDOR 0x1F00, RENDERER 0x1F01, VERSION 0x1F02,
+			// SHADING_LANGUAGE_VERSION 0x8B8C) must return strings — MC's
+			// GraphicsWorkarounds.get() lowercases them. A real browser WebGL2 returns
+			// strings here; only this fake Proxy would hand back 0 (→ String backed by a
+			// number → toLowerCase crash). Everything else stays 0.
+			if (prop === 'getParameter') return (pname) => {
+				if (pname === 0x1F00) return 'EaglerMock';
+				if (pname === 0x1F01) return 'EaglerMock WebGL2';
+				if (pname === 0x1F02) return 'WebGL 2.0 (OpenGL ES 3.0 Mock)';
+				if (pname === 0x8B8C) return 'WebGL GLSL ES 3.00';
+				// Sensible non-zero sizes/limits so MC's device init doesn't compute
+				// zero-sized GPU buffers (a real WebGL2 returns these; the fake Proxy
+				// would otherwise hand back 0). Values mirror a typical desktop GL.
+				if (pname === 0x8A34) return 256;   // UNIFORM_BUFFER_OFFSET_ALIGNMENT
+				if (pname === 0x0D33) return 16384;  // MAX_TEXTURE_SIZE
+				if (pname === 0x84FF) return 16;     // MAX_TEXTURE_MAX_ANISOTROPY_EXT
+				if (pname === 0x8D57) return 4;      // MAX_SAMPLES
+				if (pname === 0x8B4D) return 32;     // MAX_COMBINED_TEXTURE_IMAGE_UNITS
+				if (pname === 0x8B4C) return 32;     // MAX_VERTEX_TEXTURE_IMAGE_UNITS
+				if (pname === 0x8869) return 16;     // MAX_VERTEX_ATTRIBS
+				if (pname === 0x8DFB) return 256;    // MAX_VERTEX_UNIFORM_VECTORS
+				if (pname === 0x8DFC) return 256;    // MAX_FRAGMENT_UNIFORM_VECTORS
+				return 0;
+			};
 			if (prop === 'getShaderParameter' || prop === 'getProgramParameter') return () => 1;
 			if (prop === 'getShaderInfoLog' || prop === 'getProgramInfoLog') return () => '';
 			if (prop === 'getError') return () => 0;

@@ -2,10 +2,18 @@ package org.teavm.classlib.java.util.concurrent;
 
 import java.util.Collection;
 import java.util.LinkedList;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 
-/** Single-threaded environment: a plain list queue with throwing "blocking" ops. */
-public class TLinkedBlockingQueue<E> extends LinkedList<E> {
+/**
+ * Single-threaded environment: a plain list queue with non-blocking "blocking" ops.
+ *
+ * Must declare {@code implements BlockingQueue} — netty holds task queues as {@code BlockingQueue} and
+ * calls {@code poll(long,TimeUnit)}/{@code take()} through that interface. Without the interface here the
+ * override's methods don't fill netty's BlockingQueue vtable slot and the call is "not a function" at
+ * runtime (seen as GlobalEventExecutor/SingleThreadEventExecutor.takeTask crashing).
+ */
+public class TLinkedBlockingQueue<E> extends LinkedList<E> implements BlockingQueue<E> {
 	public TLinkedBlockingQueue() {
 	}
 

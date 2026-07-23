@@ -37,4 +37,8 @@ public abstract class TFileSystem implements Closeable {
     public TPathMatcher getPathMatcher(String syntaxAndPattern) {
         return null; // ponytail: Stage D
     }
+
+    public TWatchService newWatchService() {
+        throw new UnsupportedOperationException("no file watching in the browser (Stage D)");
+    }
 }

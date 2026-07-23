@@ -1,10 +1,15 @@
 package org.lwjgl.glfw;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayDeque;
 
 import net.lax1dude.eaglercraft.v1_21.platform.webgl.GLContext;
 import net.lax1dude.eaglercraft.v1_21.platform.webgl.NativeHeap;
 import org.lwjgl.PointerBuffer;
+import org.teavm.jso.JSBody;
+import org.teavm.jso.browser.Window;
+import org.teavm.jso.dom.events.Event;
+import org.teavm.jso.dom.events.EventListener;
 import org.teavm.jso.dom.html.HTMLCanvasElement;
 import org.teavm.jso.dom.html.HTMLDocument;
 import org.teavm.jso.dom.html.HTMLElement;
@@ -20,8 +25,9 @@ import org.teavm.jso.webgl.WebGLContextAttributes;
  * The real GLFW's GLFW_* ints are compile-time constants, so javac inlines them
  * at MC's call sites — there are no field references to satisfy here, only methods.
  *
- * ponytail: every entry point is the laziest browser-correct stub; input
- * callbacks are merely stored (public static) for a later Stage D wiring pass.
+ * ponytail: every entry point is the laziest browser-correct stub. Stage D wires
+ * DOM keyboard/mouse into the stored callbacks: handlers enqueue events and
+ * glfwPollEvents drains them on the main thread, matching desktop GLFW timing.
  */
 public final class GLFW {
 	private GLFW() {
@@ -51,6 +57,50 @@ public final class GLFW {
 	public static GLFWWindowPosCallbackI windowPosCallback;
 	public static GLFWWindowSizeCallbackI windowSizeCallback;
 
+	// ---- input constants used by the wiring below (MC inlines its own) ----
+	// (Real GLFW's GLFW_* ints are compile-time constants inlined at MC's call
+	// sites; these locals just let this shim read the values it dispatches.)
+	public static final int GLFW_RELEASE = 0;
+	public static final int GLFW_PRESS = 1;
+	public static final int GLFW_REPEAT = 2;
+	public static final int GLFW_KEY_UNKNOWN = -1;
+	public static final int GLFW_MOD_SHIFT = 0x0001;
+	public static final int GLFW_MOD_CONTROL = 0x0002;
+	public static final int GLFW_MOD_ALT = 0x0004;
+	public static final int GLFW_MOD_SUPER = 0x0008;
+	public static final int GLFW_CURSOR = 0x00033001;
+	public static final int GLFW_CURSOR_NORMAL = 0x00034001;
+	public static final int GLFW_CURSOR_DISABLED = 0x00034003;
+
+	// ---- DOM input plumbing (Eaglercraft pattern: enqueue on the DOM handler,
+	//      drain synchronously in glfwPollEvents so callbacks fire on the main
+	//      thread exactly like desktop GLFW) --------------------------------
+	private static final int EV_KEY = 0, EV_CHAR = 1, EV_CURSORPOS = 2, EV_MBUTTON = 3,
+			EV_SCROLL = 4, EV_ENTER = 5, EV_FOCUS = 6;
+
+	/** One queued DOM event; ints carry key/button/action/mods, doubles carry pos/scroll. */
+	private static final class Ev {
+		final int kind, a, b, c, d;
+		final double x, y;
+
+		Ev(int kind, int a, int b, int c, int d, double x, double y) {
+			this.kind = kind;
+			this.a = a;
+			this.b = b;
+			this.c = c;
+			this.d = d;
+			this.x = x;
+			this.y = y;
+		}
+	}
+
+	private static final ArrayDeque<Ev> eventQueue = new ArrayDeque<Ev>();
+	/** Press state indexed by GLFW key code (GLFW_KEY_LAST == 348). */
+	private static final boolean[] keyState = new boolean[349];
+	/** Virtual absolute cursor position MC reads; advanced by movementX/Y when pointer-locked. */
+	private static double cursorX, cursorY;
+	private static boolean listenersAttached;
+
 	// ---- init / lifecycle -------------------------------------------------
 
 	public static boolean glfwInit() {
@@ -78,6 +128,49 @@ public final class GLFW {
 	}
 
 	public static void glfwPollEvents() {
+		Ev ev;
+		while ((ev = eventQueue.poll()) != null) {
+			switch (ev.kind) {
+				case EV_KEY:
+					if (ev.a >= 0 && ev.a < keyState.length) {
+						keyState[ev.a] = ev.c != GLFW_RELEASE;
+					}
+					if (keyCallback != null) {
+						keyCallback.invoke(HANDLE, ev.a, ev.b, ev.c, ev.d);
+					}
+					break;
+				case EV_CHAR:
+					if (charModsCallback != null) {
+						charModsCallback.invoke(HANDLE, ev.a, ev.d);
+					}
+					break;
+				case EV_CURSORPOS:
+					if (cursorPosCallback != null) {
+						cursorPosCallback.invoke(HANDLE, ev.x, ev.y);
+					}
+					break;
+				case EV_MBUTTON:
+					if (mouseButtonCallback != null) {
+						mouseButtonCallback.invoke(HANDLE, ev.a, ev.c, ev.d);
+					}
+					break;
+				case EV_SCROLL:
+					if (scrollCallback != null) {
+						scrollCallback.invoke(HANDLE, ev.x, ev.y);
+					}
+					break;
+				case EV_ENTER:
+					if (cursorEnterCallback != null) {
+						cursorEnterCallback.invoke(HANDLE, ev.a != 0);
+					}
+					break;
+				case EV_FOCUS:
+					if (windowFocusCallback != null) {
+						windowFocusCallback.invoke(HANDLE, ev.a != 0);
+					}
+					break;
+			}
+		}
 	}
 
 	public static void glfwWaitEventsTimeout(double timeout) {
@@ -112,8 +205,175 @@ public final class GLFW {
 		canvas = c;
 		gl = ctx;
 		GLContext.CURRENT = new GLContext(ctx);
+		attachInputListeners(doc, c);
 		return HANDLE;
 	}
+
+	/**
+	 * Wires browser DOM input into the event queue. Keys go on the document
+	 * (the canvas needs focus for key events); mouse/wheel on the canvas; focus
+	 * on the window. Handlers only enqueue + preventDefault — dispatch to MC's
+	 * callbacks happens on the main thread in {@link #glfwPollEvents}.
+	 */
+	private static void attachInputListeners(HTMLDocument doc, HTMLCanvasElement c) {
+		if (listenersAttached) {
+			return;
+		}
+		listenersAttached = true;
+
+		EventListener<Event> onKeyDown = e -> {
+			String cd = code(e);
+			int m = mods(e);
+			int k = KeyCodes.glfw(cd);
+			if (k != GLFW_KEY_UNKNOWN) {
+				eventQueue.add(new Ev(EV_KEY, k, 0, repeat(e) ? GLFW_REPEAT : GLFW_PRESS, m, 0, 0));
+				// ponytail: swallow default (page scroll, quick-find) for every mapped key
+				// except the browser essentials refresh/fullscreen/devtools.
+				if (!cd.equals("F5") && !cd.equals("F11") && !cd.equals("F12")) {
+					e.preventDefault();
+				}
+			}
+			int cp = charCode(e);
+			if (cp >= 0) {
+				eventQueue.add(new Ev(EV_CHAR, cp, 0, 0, m, 0, 0));
+			}
+		};
+		EventListener<Event> onKeyUp = e -> {
+			int k = KeyCodes.glfw(code(e));
+			if (k != GLFW_KEY_UNKNOWN) {
+				eventQueue.add(new Ev(EV_KEY, k, 0, GLFW_RELEASE, mods(e), 0, 0));
+			}
+		};
+		EventListener<Event> onMove = e -> {
+			// The canvas backing store (canvas.width/height, == MC's framebuffer/screen size) can differ
+			// from its CSS display size (clientWidth/Height); DOM offset/movement are in CSS pixels, so
+			// scale them into backing-store pixels or MC's mouse coords land in the wrong place.
+			double sx = scaleX(c);
+			double sy = scaleY(c);
+			if (isPointerLocked()) {
+				cursorX += movementX(e) * sx;
+				cursorY += movementY(e) * sy;
+			} else {
+				cursorX = offsetX(e) * sx;
+				cursorY = offsetY(e) * sy;
+			}
+			eventQueue.add(new Ev(EV_CURSORPOS, 0, 0, 0, 0, cursorX, cursorY));
+		};
+		EventListener<Event> onDown = e -> {
+			eventQueue.add(new Ev(EV_MBUTTON, glfwButton(button(e)), 0, GLFW_PRESS, mods(e), 0, 0));
+			e.preventDefault();
+		};
+		EventListener<Event> onUp = e -> {
+			eventQueue.add(new Ev(EV_MBUTTON, glfwButton(button(e)), 0, GLFW_RELEASE, mods(e), 0, 0));
+			e.preventDefault();
+		};
+		EventListener<Event> onWheel = e -> {
+			// ponytail: normalize to GLFW's ±1-per-notch; raw deltaY is pixels/lines.
+			eventQueue.add(new Ev(EV_SCROLL, 0, 0, 0, 0, -Math.signum(deltaX(e)), -Math.signum(deltaY(e))));
+			e.preventDefault();
+		};
+		EventListener<Event> onCtx = e -> e.preventDefault();
+		EventListener<Event> onMouseEnter = e -> eventQueue.add(new Ev(EV_ENTER, 1, 0, 0, 0, 0, 0));
+		EventListener<Event> onMouseLeave = e -> eventQueue.add(new Ev(EV_ENTER, 0, 0, 0, 0, 0, 0));
+		EventListener<Event> onFocus = e -> eventQueue.add(new Ev(EV_FOCUS, 1, 0, 0, 0, 0, 0));
+		EventListener<Event> onBlur = e -> eventQueue.add(new Ev(EV_FOCUS, 0, 0, 0, 0, 0, 0));
+
+		doc.addEventListener("keydown", onKeyDown);
+		doc.addEventListener("keyup", onKeyUp);
+		c.addEventListener("mousemove", onMove);
+		c.addEventListener("mousedown", onDown);
+		c.addEventListener("mouseup", onUp);
+		c.addEventListener("wheel", onWheel);
+		c.addEventListener("contextmenu", onCtx);
+		c.addEventListener("mouseenter", onMouseEnter);
+		c.addEventListener("mouseleave", onMouseLeave);
+		Window.current().addEventListener("focus", onFocus);
+		Window.current().addEventListener("blur", onBlur);
+	}
+
+	private static int mods(Event e) {
+		int m = 0;
+		if (shiftKey(e)) {
+			m |= GLFW_MOD_SHIFT;
+		}
+		if (ctrlKey(e)) {
+			m |= GLFW_MOD_CONTROL;
+		}
+		if (altKey(e)) {
+			m |= GLFW_MOD_ALT;
+		}
+		if (metaKey(e)) {
+			m |= GLFW_MOD_SUPER;
+		}
+		return m;
+	}
+
+	/** DOM mouse button (0=left,1=middle,2=right) -> GLFW (0=left,1=right,2=middle). */
+	private static int glfwButton(int b) {
+		return b == 1 ? 2 : b == 2 ? 1 : b;
+	}
+
+	// ---- @JSBody field readers (typed JSO interfaces vary; these always work) --
+	@JSBody(params = "e", script = "return e.code;")
+	private static native String code(Event e);
+
+	@JSBody(params = "e", script = "return e.repeat;")
+	private static native boolean repeat(Event e);
+
+	@JSBody(params = "e", script = "return e.shiftKey;")
+	private static native boolean shiftKey(Event e);
+
+	@JSBody(params = "e", script = "return e.ctrlKey;")
+	private static native boolean ctrlKey(Event e);
+
+	@JSBody(params = "e", script = "return e.altKey;")
+	private static native boolean altKey(Event e);
+
+	@JSBody(params = "e", script = "return e.metaKey;")
+	private static native boolean metaKey(Event e);
+
+	@JSBody(params = "e", script = "return e.button | 0;")
+	private static native int button(Event e);
+
+	@JSBody(params = "e", script = "return e.movementX;")
+	private static native double movementX(Event e);
+
+	@JSBody(params = "e", script = "return e.movementY;")
+	private static native double movementY(Event e);
+
+	@JSBody(params = "e", script = "return e.offsetX;")
+	private static native double offsetX(Event e);
+
+	@JSBody(params = "e", script = "return e.offsetY;")
+	private static native double offsetY(Event e);
+
+	// CSS-pixel -> canvas-backing-pixel scale (1.0 when the canvas isn't CSS-stretched).
+	@JSBody(params = "c", script = "return c.clientWidth > 0 ? c.width / c.clientWidth : 1;")
+	private static native double scaleX(HTMLCanvasElement c);
+
+	@JSBody(params = "c", script = "return c.clientHeight > 0 ? c.height / c.clientHeight : 1;")
+	private static native double scaleY(HTMLCanvasElement c);
+
+	@JSBody(params = "e", script = "return e.deltaX;")
+	private static native double deltaX(Event e);
+
+	@JSBody(params = "e", script = "return e.deltaY;")
+	private static native double deltaY(Event e);
+
+	// Printable codepoint for a keydown, or -1 for named/control keys and modified combos.
+	@JSBody(params = "e", script = "var k = e.key;"
+			+ "return (k && Array.from(k).length === 1 && !e.ctrlKey && !e.metaKey && k.codePointAt(0) >= 32)"
+			+ " ? k.codePointAt(0) : -1;")
+	private static native int charCode(Event e);
+
+	@JSBody(params = "c", script = "if (c.requestPointerLock) c.requestPointerLock();")
+	private static native void requestPointerLock(HTMLElement c);
+
+	@JSBody(params = {}, script = "if (document.exitPointerLock) document.exitPointerLock();")
+	private static native void exitPointerLock();
+
+	@JSBody(params = {}, script = "return document.pointerLockElement != null;")
+	private static native boolean isPointerLocked();
 
 	public static void glfwDestroyWindow(long window) {
 	}
@@ -203,7 +463,7 @@ public final class GLFW {
 	}
 
 	public static int glfwGetKey(long window, int key) {
-		return 0; // GLFW_RELEASE
+		return (key >= 0 && key < keyState.length && keyState[key]) ? GLFW_PRESS : GLFW_RELEASE;
 	}
 
 	public static String glfwGetKeyName(int key, int scancode) {
@@ -211,9 +471,19 @@ public final class GLFW {
 	}
 
 	public static void glfwSetInputMode(long window, int mode, int value) {
+		if (mode == GLFW_CURSOR && canvas != null) {
+			if (value == GLFW_CURSOR_DISABLED) {
+				requestPointerLock(canvas); // must ride a user gesture; MC calls this from a click
+			} else {
+				exitPointerLock(); // GLFW_CURSOR_NORMAL / GLFW_CURSOR_HIDDEN
+			}
+		}
+		// ponytail: GLFW_RAW_MOUSE_MOTION / GLFW_STICKY_* are no-ops in the browser.
 	}
 
 	public static void glfwSetCursorPos(long window, double xpos, double ypos) {
+		cursorX = xpos;
+		cursorY = ypos;
 	}
 
 	public static void glfwSetCursor(long window, long cursor) {

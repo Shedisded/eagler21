@@ -1,0 +1,15 @@
+> Task :compileJava UP-TO-DATE
+> Task :processResources UP-TO-DATE
+> Task :classes UP-TO-DATE
+> Task :jar UP-TO-DATE
+> Task :teavm:compileJava UP-TO-DATE
+> Task :teavm:processResources NO-SOURCE
+> Task :teavm:classes UP-TO-DATE
+> Task :teavm:compileClasslibOverridesJava UP-TO-DATE
+> Task :teavm:processClasslibOverridesResources NO-SOURCE
+> Task :teavm:classlibOverridesClasses UP-TO-DATE
+> Task :teavm:compileUnsafeStubJava UP-TO-DATE
+> Task :teavm:processUnsafeStubResources NO-SOURCE
+> Task :teavm:unsafeStubClasses UP-TO-DATE
+> Task :teavm:patchedClasslib UP-TO-DATE
+> Task :teavm:generateJavaScript

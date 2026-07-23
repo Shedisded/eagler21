@@ -71,6 +71,11 @@ public class ClientPackSource extends BuiltInPackSource {
             .exposeNamespace("minecraft", "realms");
         return vanillapackresourcesbuilder.applyDevelopmentConfig()
             .pushJarResources()
+            // eagler: classpath .mcassetsroot lookup (pushJarResources) returns nothing on
+            // TeaVM (Class.getResource is null and embedded resources aren't walkable). The
+            // vanilla resources are unzipped into the TeaVM VFS at /eagler-assets (see
+            // EaglerAssets); pull them from there. pushUniversalPath adds assets/ + data/.
+            .pushUniversalPath(java.nio.file.Paths.get("/eagler-assets"))
             .pushAssetPath(PackType.CLIENT_RESOURCES, p_250749_)
             .build(VANILLA_PACK_INFO);
     }

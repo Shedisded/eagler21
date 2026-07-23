@@ -13,7 +13,10 @@ import net.minecraft.network.chat.FormattedText;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
+import net.minecraft.network.chat.Style;
 import net.minecraft.util.FormattedCharSequence;
+import net.minecraft.util.StringDecomposer;
+import java.util.Optional;
 import org.slf4j.Logger;
 
 public class ClientLanguage extends Language {
@@ -73,6 +76,15 @@ public class ClientLanguage extends Language {
 
     @Override
     public FormattedCharSequence getVisualOrder(FormattedText p_118925_) {
-        return FormattedBidiReorder.reorder(p_118925_, this.defaultRightToLeft);
+        // ponytail: ICU4J Bidi data (ubidi.icu/uprops.icu) isn't embedded in the TeaVM build,
+        // so new Bidi(...) NPEs on a null data buffer. We render LTR (en_us); reorder in logical
+        // order like Language's default impl. RTL falls back to logical order until ICU data ships.
+        return p_128132_ -> p_118925_.visit(
+                (style, text) -> StringDecomposer.iterateFormatted(text, style, p_128132_)
+                    ? Optional.empty()
+                    : FormattedText.STOP_ITERATION,
+                Style.EMPTY
+            )
+            .isPresent();
     }
 }

@@ -18,6 +18,10 @@ public class TRuntime {
 		throw new UnsupportedOperationException("no subprocesses in the browser (Stage D)");
 	}
 
+	public TProcess exec(TString[] cmdarray) {
+		throw new UnsupportedOperationException("no subprocesses in the browser (Stage D)");
+	}
+
 	public void addShutdownHook(TThread hook) {
 	}
 

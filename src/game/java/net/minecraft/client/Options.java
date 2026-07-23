@@ -77,7 +77,13 @@ import org.slf4j.Logger;
 public class Options {
     static final Logger LOGGER = LogUtils.getLogger();
     static final Gson GSON = new Gson();
-    private static final TypeToken<List<String>> LIST_OF_STRINGS_TYPE = new TypeToken<List<String>>() {};
+    // eagler: anonymous `new TypeToken<List<String>>(){}` relies on generic-superclass
+    // reflection, which TeaVM lacks (Class.getGenericSuperclass returns the raw class, so
+    // gson TypeToken throws "Missing type parameter."). getParameterized builds the same
+    // ParameterizedType without reflection and is equivalent on desktop.
+    @SuppressWarnings("unchecked")
+    private static final TypeToken<List<String>> LIST_OF_STRINGS_TYPE =
+        (TypeToken<List<String>>) TypeToken.getParameterized(List.class, String.class);
     public static final int RENDER_DISTANCE_SHORT = 4;
     public static final int RENDER_DISTANCE_FAR = 12;
     public static final int RENDER_DISTANCE_REALLY_FAR = 16;

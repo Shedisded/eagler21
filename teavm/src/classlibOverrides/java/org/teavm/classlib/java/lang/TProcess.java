@@ -14,6 +14,14 @@ public abstract class TProcess {
 		return null;
 	}
 
+	public org.teavm.classlib.java.io.TInputStream getErrorStream() {
+		return null;
+	}
+
+	public org.teavm.classlib.java.io.TOutputStream getOutputStream() {
+		return null;
+	}
+
 	public int waitFor() {
 		return 0;
 	}

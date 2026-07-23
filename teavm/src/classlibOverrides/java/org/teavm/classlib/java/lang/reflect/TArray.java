@@ -54,11 +54,34 @@ public final class TArray extends TObject {
     }
 
     public static Object newInstance(Class<?> componentType, int[] dimensions) throws TNegativeArraySizeException {
-        if (dimensions.length == 1) {
-            return newInstance(componentType, dimensions[0]);
+        if (dimensions.length == 0) {
+            throw new TIllegalArgumentException();
         }
-        // ponytail: Stage D — multi-dimensional array reflection not implemented; link-only.
-        throw new UnsupportedOperationException("multi-dim (Stage D)");
+        return newMultiArray(componentType, dimensions, 0);
+    }
+
+    // Recursive reflective multi-dim array creation (java.lang.reflect.Array.newInstance(cls, int[])).
+    // Reuses the single-dim newInstance + set; the outer levels are arrays-of-arrays whose element class
+    // is taken from a recursively-built sub-array. World gen (noise/DFU) hits this; was a Stage-D stub.
+    private static Object newMultiArray(Class<?> componentType, int[] dimensions, int index)
+            throws TNegativeArraySizeException {
+        int length = dimensions[index];
+        if (index == dimensions.length - 1) {
+            return newInstance(componentType, length);
+        }
+        if (length < 0) {
+            throw new TNegativeArraySizeException();
+        }
+        // Build one inner array to discover the element (array) class, then an outer array of it.
+        Object first = newMultiArray(componentType, dimensions, index + 1);
+        Object result = newInstance(first.getClass(), length);
+        if (length > 0) {
+            set(result, 0, first);
+            for (int i = 1; i < length; i++) {
+                set(result, i, newMultiArray(componentType, dimensions, index + 1));
+            }
+        }
+        return result;
     }
 
     @PluggableDependency(ArrayDependencyPlugin.class)

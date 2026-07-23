@@ -205,7 +205,9 @@ public class Util {
 
     private static TracingExecutor makeIoExecutor(String p_469747_, boolean p_467449_) {
         AtomicInteger atomicinteger = new AtomicInteger(1);
-        return new TracingExecutor(Executors.newCachedThreadPool(p_467103_ -> {
+        // IO pool creation lives behind PlatformExecutors so the TeaVM target substitutes a single-threaded
+        // direct executor (the raw cached thread pool doesn't run in the browser -> IOWorker.join deadlock).
+        return new TracingExecutor(PlatformExecutors.newIoExecutor(p_467103_ -> {
             Thread thread = new Thread(p_467103_);
             String s = p_469747_ + atomicinteger.getAndIncrement();
             TracyClient.setThreadName(s, p_469747_.hashCode());

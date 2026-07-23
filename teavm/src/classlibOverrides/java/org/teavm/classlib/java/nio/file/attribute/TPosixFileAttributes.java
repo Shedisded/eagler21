@@ -5,4 +5,6 @@ import java.util.Set;
 /** Link stub for java.nio.file.attribute.PosixFileAttributes. */
 public interface TPosixFileAttributes {
 	Set permissions();
+
+	TFileTime lastModifiedTime();
 }

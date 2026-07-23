@@ -109,7 +109,13 @@ public class Main {
             GameLoadTimesEvent.INSTANCE.beginStep(TelemetryProperty.LOAD_TIME_PRE_WINDOW_MS, stopwatch1);
             SharedConstants.tryDetectVersion();
             TracyClient.reportAppInfo("Minecraft Java Edition " + SharedConstants.getCurrentVersion().name());
-            CompletableFuture<?> completablefuture = DataFixers.optimize(DataFixTypes.TYPES_FOR_LEVEL_LIST);
+            // eagler: DataFixers.optimize() pre-builds the DFU optics/type-rewrite graph,
+            // whose com.mojang.datafixers.optics.*$Mu <clinit> do `new TypeToken<...>(){}`
+            // (guava). TeaVM has no generic-superclass reflection, so guava TypeToken.capture()
+            // throws "isn't parameterized". Optimize is a pure startup perf pre-computation
+            // (the DataFixer still builds + runs lazily), and the optics graph is only needed
+            // for actual data fixing (loading old worlds) — never at the title screen. Skip it.
+            CompletableFuture<?> completablefuture = CompletableFuture.completedFuture(null);
             CrashReport.preload();
             logger = LogUtils.getLogger();
             s1 = "Bootstrap";

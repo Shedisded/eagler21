@@ -650,8 +650,7 @@ public class TFile implements Serializable, Comparable<TFile> {
         }
     }
 
-    // ponytail: only reached from Minecraft.saveReport (crash path). Link-stub.
     public org.teavm.classlib.java.nio.file.TPath toPath() {
-        throw new UnsupportedOperationException("File.toPath");
+        return org.teavm.classlib.java.nio.file.TPaths.get(getPath());
     }
 }

@@ -8,8 +8,9 @@ import org.jspecify.annotations.Nullable;
 
 public class StringUtil {
     private static final Pattern STRIP_COLOR_PATTERN = Pattern.compile("(?i)\\u00A7[0-9A-FK-OR]");
-    private static final Pattern LINE_PATTERN = Pattern.compile("\\r\\n|\\v");
-    private static final Pattern LINE_END_PATTERN = Pattern.compile("(?:\\r\\n|\\v)$");
+    // eagler: TeaVM's regex engine lacks \v (vertical whitespace); expand to its ASCII members.
+    private static final Pattern LINE_PATTERN = Pattern.compile("\\r\\n|[\\n\\x0B\\f\\r]");
+    private static final Pattern LINE_END_PATTERN = Pattern.compile("(?:\\r\\n|[\\n\\x0B\\f\\r])$");
 
     public static String formatTickDuration(int p_14405_, float p_314711_) {
         int i = Mth.floor(p_14405_ / p_314711_);

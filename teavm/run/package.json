@@ -1,0 +1,10 @@
+{
+  "name": "eagler-teavm-run",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Headless chromium harness for running the TeaVM Minecraft client with a real WebGL2 context (swiftshader) plus a static server that serves classes.js and the asset pack.",
+  "type": "commonjs",
+  "dependencies": {
+    "puppeteer": "^23.0.0"
+  }
+}

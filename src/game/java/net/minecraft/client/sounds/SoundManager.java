@@ -51,7 +51,11 @@ public class SoundManager extends SimplePreparableReloadListener<SoundManager.Pr
     static final Logger LOGGER = LogUtils.getLogger();
     private static final String SOUNDS_PATH = "sounds.json";
     private static final Gson GSON = new GsonBuilder().registerTypeAdapter(SoundEventRegistration.class, new SoundEventRegistrationSerializer()).create();
-    private static final TypeToken<Map<String, SoundEventRegistration>> SOUND_EVENT_REGISTRATION_TYPE = new TypeToken<Map<String, SoundEventRegistration>>() {};
+    // eagler: anonymous TypeToken needs generic-superclass reflection TeaVM lacks; build the
+    // same ParameterizedType reflection-free via getParameterized (equivalent on desktop).
+    @SuppressWarnings("unchecked")
+    private static final TypeToken<Map<String, SoundEventRegistration>> SOUND_EVENT_REGISTRATION_TYPE =
+        (TypeToken<Map<String, SoundEventRegistration>>) TypeToken.getParameterized(Map.class, String.class, SoundEventRegistration.class);
     private final Map<Identifier, WeighedSoundEvents> registry = Maps.newHashMap();
     private final SoundEngine soundEngine;
     private final Map<Identifier, Resource> soundCache = new HashMap<>();

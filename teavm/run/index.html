@@ -16,11 +16,16 @@
 	</script>
 	<script src="classes.js"></script>
 	<script>
-		try {
-			main([]);
-		} catch (e) {
-			console.error('[main threw]', e && e.stack || e);
-		}
+		// Fetch the vanilla resource zip and hand it to the TeaVM boot as an Int8Array
+		// (EaglerAssets.install reads window.__EAGLER_ZIP and unzips it into the VFS)
+		// BEFORE running main([]).
+		fetch('vanilla-assets.zip')
+			.then(r => r.ok ? r.arrayBuffer() : Promise.reject('zip ' + r.status))
+			.then(buf => { window.__EAGLER_ZIP = new Int8Array(buf); console.log('[boot] fetched vanilla-assets.zip ' + buf.byteLength + ' bytes'); })
+			.catch(e => console.warn('[boot] no vanilla-assets.zip (' + e + '); booting without assets'))
+			.finally(() => {
+				try { main([]); } catch (e) { console.error('[main threw]', e && e.stack || e); }
+			});
 	</script>
 </body>
 </html>

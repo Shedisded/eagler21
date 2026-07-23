@@ -14,15 +14,12 @@ public class SoundEngineExecutor extends BlockableEventLoop<Runnable> {
     }
 
     private Thread createThread() {
-        Thread thread = new Thread(this::run);
-        thread.setDaemon(true);
-        thread.setName("Sound engine");
-        thread.setUncaughtExceptionHandler(
-            (p_437177_, p_437178_) -> Minecraft.getInstance()
-                .delayCrash(CrashReport.forThrowable(p_437178_, "Uncaught exception on thread: " + p_437177_.getName()))
-        );
-        thread.start();
-        return thread;
+        // ponytail: TeaVM is single-threaded (JS). A real "Sound engine" thread would run()->
+        // waitForTasks()->LockSupport.park() and TeaVM throws "Cannot park the only thread" in a
+        // 600x crash loop. Return the current (main/render) thread instead of spawning: getRunningThread()
+        // now == the caller thread, so isSameThread() is true and BlockableEventLoop runs every sound
+        // task INLINE (see scheduleExecutables/submit/execute) with no background thread or parking.
+        return Thread.currentThread();
     }
 
     @Override
@@ -59,15 +56,9 @@ public class SoundEngineExecutor extends BlockableEventLoop<Runnable> {
     }
 
     public void shutDown() {
+        // ponytail: no background thread to interrupt/join (see createThread) - just stop scheduling.
         this.shutdown = true;
         this.dropAllTasks();
-        this.thread.interrupt();
-
-        try {
-            this.thread.join();
-        } catch (InterruptedException interruptedexception) {
-            Thread.currentThread().interrupt();
-        }
     }
 
     public void startUp() {

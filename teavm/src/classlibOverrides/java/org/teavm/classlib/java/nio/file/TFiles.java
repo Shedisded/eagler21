@@ -550,16 +550,18 @@ public final class TFiles {
     private static Stream<TPath> findRec(TPath path, int maxDepth, BiPredicate<TPath, TBasicFileAttributes> matcher)
             throws IOException {
         var attr = readAttributes(path, TBasicFileAttributes.class);
-        var result = matcher.test(path, attr) ? Stream.of(path) : null;
+        // ponytail: empty (not null) when the path itself doesn't match — Stream.concat(null,..) NPEs,
+        // which is exactly the crash when Files.find walks a pack root dir (matcher=isRegularFile is
+        // false for the dir itself). This backs PathPackResources.listResources during vanilla reload.
+        Stream<TPath> result = matcher.test(path, attr) ? Stream.of(path) : Stream.empty();
         if (maxDepth > 0 && attr.isDirectory()) {
-            var next = Stream.concat(result, list(path).flatMap(child -> {
+            result = Stream.concat(result, list(path).flatMap(child -> {
                 try {
                     return findRec(child, maxDepth - 1, matcher);
                 } catch (IOException e) {
                     return Stream.empty();
                 }
             }));
-            result = result != null ? Stream.concat(result, next) : next;
         }
         return result;
     }
@@ -599,5 +601,14 @@ public final class TFiles {
 
     public static TPath setPosixFilePermissions(TPath path, Set<TPosixFilePermission> perms) throws IOException {
         return path; // ponytail: Stage D VFS
+    }
+
+    public static Object getAttribute(TPath path, String attribute, TLinkOption... options) throws IOException {
+        throw new UnsupportedOperationException("Stage D"); // ponytail: Stage D VFS
+    }
+
+    public static java.nio.file.attribute.UserPrincipal getOwner(TPath path, TLinkOption... options)
+            throws IOException {
+        throw new UnsupportedOperationException("Stage D"); // ponytail: Stage D VFS
     }
 }

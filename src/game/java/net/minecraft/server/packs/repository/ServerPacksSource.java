@@ -51,6 +51,11 @@ public class ServerPacksSource extends BuiltInPackSource {
             .exposeNamespace("minecraft")
             .applyDevelopmentConfig()
             .pushJarResources()
+            // eagler: pushJarResources is empty on TeaVM (no classpath walk). The server-data vanilla
+            // pack (registry/world loading) needs data/ from the VFS -> point it at /eagler-assets, same
+            // as ClientPackSource. Without this the data-driven registries (cat_variant, painting_variant,
+            // ...) load empty -> "Registry must be non-empty" crash on world creation.
+            .pushUniversalPath(java.nio.file.Paths.get("/eagler-assets"))
             .build(VANILLA_PACK_INFO);
     }
 
